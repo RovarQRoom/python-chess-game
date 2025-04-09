@@ -13,6 +13,8 @@ SQUARE_SIZE = WIDTH // 8
 LIGHT_SQUARE = (240, 217, 181)  # Light beige
 DARK_SQUARE = (181, 136, 99)    # Dark brown
 HIGHLIGHT_COLOR = (106, 159, 181)  # Blue for highlighting
+CAPTURE_HIGHLIGHT_COLOR = (204, 36, 29)  # Red for capture targets
+CHECK_HIGHLIGHT_COLOR = (255, 51, 0)  # Bright red for check indicator
 
 # Game settings
 FPS = 60

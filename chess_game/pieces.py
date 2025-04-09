@@ -295,13 +295,17 @@ class King(Piece):
                         can_castle = False
                         break
                 
+                # Make sure the kingside rook exists and hasn't moved
+                kingside_rook = board.get_piece(self.row, 7)
+                if not kingside_rook or not isinstance(kingside_rook, Rook) or kingside_rook.has_moved:
+                    can_castle = False
+                
                 # Check if king passes through check
-                for col in range(self.col + 1, self.col + 3):
-                    # Create a temporary board to test if the square is under attack
-                    temp_board = board
-                    if temp_board.is_square_under_attack(self.row, col, self.color):
-                        can_castle = False
-                        break
+                if can_castle:
+                    for col in range(self.col + 1, self.col + 3):
+                        if board.is_square_under_attack(self.row, col, self.color):
+                            can_castle = False
+                            break
                 
                 if can_castle:
                     moves.append((self.row, self.col + 2))
@@ -315,13 +319,19 @@ class King(Piece):
                         can_castle = False
                         break
                 
+                # Make sure the queenside rook exists and hasn't moved
+                queenside_rook = board.get_piece(self.row, 0)
+                if not queenside_rook or not isinstance(queenside_rook, Rook) or queenside_rook.has_moved:
+                    can_castle = False
+                
                 # Check if king passes through check
-                for col in range(self.col - 1, self.col - 3, -1):
-                    # Create a temporary board to test if the square is under attack
-                    temp_board = board
-                    if temp_board.is_square_under_attack(self.row, col, self.color):
-                        can_castle = False
-                        break
+                if can_castle:
+                    for col in range(self.col - 1, self.col - 3, -1):
+                        if col < 0:
+                            break
+                        if board.is_square_under_attack(self.row, col, self.color):
+                            can_castle = False
+                            break
                 
                 if can_castle:
                     moves.append((self.row, self.col - 2))

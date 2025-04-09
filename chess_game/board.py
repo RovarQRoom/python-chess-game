@@ -118,9 +118,31 @@ class Board:
         # Update king position if king moved
         if isinstance(piece, King):
             self.king_positions[piece.color] = (end_row, end_col)
+            # Update castling rights - king moved, so no castling is possible
+            self.castling_rights[piece.color]['kingside'] = False
+            self.castling_rights[piece.color]['queenside'] = False
         
-        # Update castling rights if king or rook moved
-        self._update_castling_rights(piece, start_row, start_col)
+        # Update castling rights if rook moved
+        if isinstance(piece, Rook):
+            if start_row == 7 and start_col == 0 and piece.color == WHITE:
+                self.castling_rights[WHITE]['queenside'] = False
+            elif start_row == 7 and start_col == 7 and piece.color == WHITE:
+                self.castling_rights[WHITE]['kingside'] = False
+            elif start_row == 0 and start_col == 0 and piece.color == BLACK:
+                self.castling_rights[BLACK]['queenside'] = False
+            elif start_row == 0 and start_col == 7 and piece.color == BLACK:
+                self.castling_rights[BLACK]['kingside'] = False
+        
+        # Check if rook was captured (which affects castling rights)
+        if captured_piece and isinstance(captured_piece, Rook):
+            if end_row == 0 and end_col == 0:
+                self.castling_rights[BLACK]['queenside'] = False
+            elif end_row == 0 and end_col == 7:
+                self.castling_rights[BLACK]['kingside'] = False
+            elif end_row == 7 and end_col == 0:
+                self.castling_rights[WHITE]['queenside'] = False
+            elif end_row == 7 and end_col == 7:
+                self.castling_rights[WHITE]['kingside'] = False
         
         # Store captured piece if there was one
         if captured_piece and move_type != 'en_passant':
@@ -180,20 +202,6 @@ class Board:
                 return 'castling_queenside'
         
         return 'regular'
-    
-    def _update_castling_rights(self, piece, start_row, start_col):
-        """Update castling rights when king or rook moves"""
-        if isinstance(piece, King):
-            self.castling_rights[piece.color]['kingside'] = False
-            self.castling_rights[piece.color]['queenside'] = False
-        
-        elif isinstance(piece, Rook):
-            # Kingside rook
-            if start_col == 7:
-                self.castling_rights[piece.color]['kingside'] = False
-            # Queenside rook
-            elif start_col == 0:
-                self.castling_rights[piece.color]['queenside'] = False
     
     def is_square_under_attack(self, row, col, color):
         """Check if a square is under attack by any opponent piece"""
