@@ -8,6 +8,8 @@ A complete chess game implementation in Python with GUI and AI player.
 - Special moves: castling, en passant, pawn promotion
 - Chess AI with minimax algorithm and alpha-beta pruning
 - Position evaluation based on material and strategic factors
+- Network multiplayer over local network (LAN)
+- Local multiplayer on the same computer
 - Game state detection (checkmate, stalemate, draw conditions)
 - Simple and clean GUI using Pygame
 
@@ -33,6 +35,42 @@ Run the game with:
 python main.py
 ```
 
+### Game Modes
+
+The game offers three playing modes:
+
+1. **Singleplayer** - Play against the AI with three difficulty levels
+2. **Local Multiplayer** - Play against a friend on the same computer
+3. **Network Multiplayer** - Play against a friend over a local network
+
+### Network Multiplayer
+
+To play over a local network:
+
+#### Option 1: Host a game
+
+1. Select "Network Multiplayer" from the main menu
+2. Click "Host Game"
+3. Your computer will start both a server and act as a client
+4. Tell your friend your IP address to connect to
+
+#### Option 2: Join a game
+
+1. Select "Network Multiplayer" from the main menu
+2. Click "Join Game"
+3. Enter the IP address of the host computer
+4. Click "Connect"
+
+#### Option 3: Dedicated server mode
+
+You can also run a dedicated server (without GUI) on a computer:
+
+```
+python main.py --server
+```
+
+This will display the server's IP address which players can connect to.
+
 ### Game Controls
 
 - Click on a piece to select it
@@ -43,6 +81,7 @@ python main.py
 ## Project Structure
 
 - `main.py` - Main entry point
+- `fixed_menu.py` - Menu system with multiple game modes
 - `chess_game/` - Main package containing game logic
   - `game.py` - Game loop and UI management
   - `board.py` - Chess board representation and game rules
@@ -50,6 +89,8 @@ python main.py
   - `player.py` - Player base class
   - `ai.py` - AI implementation with minimax and position evaluation
   - `constants.py` - Game constants and evaluation tables
+  - `network.py` - Network multiplayer implementation
+  - `network_game.py` - Network game management
 - `assets/` - Directory for piece images
 
 ## Chess AI

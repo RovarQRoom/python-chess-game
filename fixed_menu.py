@@ -2,11 +2,13 @@
 import pygame
 import threading
 import time
+import socket
 from chess_game.constants import WIDTH, HEIGHT, FPS, LIGHT_SQUARE, DARK_SQUARE
 from chess_game.game import ChessGame
 from chess_game.ai import ChessAI
 from chess_game.player import Player
 from chess_game.constants import WHITE, BLACK
+from chess_game.network_game import NetworkGame
 
 class Button:
     """Button class for menu interactions"""
@@ -71,12 +73,34 @@ class MenuSystem:
         
         # Prepare buttons for main menu
         self.main_menu_buttons = [
-            Button("Singleplayer", WIDTH//2 - 150, HEIGHT//2 - 50, 300, 60, 
+            Button("Singleplayer", WIDTH//2 - 150, HEIGHT//2 - 80, 300, 60, 
                   self.button_color, self.button_hover_color, self.button_text_color),
-            Button("Multiplayer", WIDTH//2 - 150, HEIGHT//2 + 30, 300, 60,
+            Button("Local Multiplayer", WIDTH//2 - 150, HEIGHT//2, 300, 60,
                   self.button_color, self.button_hover_color, self.button_text_color),
-            Button("Quit", WIDTH//2 - 150, HEIGHT//2 + 110, 300, 60,
+            Button("Network Multiplayer", WIDTH//2 - 150, HEIGHT//2 + 80, 300, 60,
+                  self.button_color, self.button_hover_color, self.button_text_color),
+            Button("Quit", WIDTH//2 - 150, HEIGHT//2 + 160, 300, 60,
                   self.button_color, self.button_hover_color, self.button_text_color)
+        ]
+        
+        # Network menu buttons
+        self.network_menu_buttons = [
+            Button("Host Game", WIDTH//2 - 150, HEIGHT//2 - 50, 300, 60,
+                  self.button_color, self.button_hover_color, self.button_text_color),
+            Button("Join Game", WIDTH//2 - 150, HEIGHT//2 + 30, 300, 60,
+                  self.button_color, self.button_hover_color, self.button_text_color),
+            Button("Back", 50, HEIGHT - 80, 120, 50,
+                  self.button_color, self.button_hover_color, self.button_text_color, 24)
+        ]
+        
+        # Join game menu (IP entry)
+        self.ip_input = ""
+        self.ip_active = False
+        self.join_menu_buttons = [
+            Button("Connect", WIDTH//2 - 100, HEIGHT//2 + 50, 200, 50,
+                  self.button_color, self.button_hover_color, self.button_text_color),
+            Button("Back", 50, HEIGHT - 80, 120, 50,
+                  self.button_color, self.button_hover_color, self.button_text_color, 24)
         ]
         
         # Prepare buttons for difficulty selection
@@ -115,6 +139,7 @@ class MenuSystem:
         
         # Game instance
         self.game = None
+        self.network_game = None
         self.game_mode = None
         self.difficulty = None
         self.paused = False
@@ -154,6 +179,10 @@ class MenuSystem:
                 self._handle_main_menu()
             elif self.state == "difficulty":
                 self._handle_difficulty_menu()
+            elif self.state == "network_menu":
+                self._handle_network_menu()
+            elif self.state == "join_game":
+                self._handle_join_game()
             elif self.state == "game":
                 if self.paused:
                     self._handle_pause_menu()
@@ -175,6 +204,18 @@ class MenuSystem:
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE and self.state == "game":
                     self.paused = not self.paused
+                
+                # IP input for join game menu
+                if self.state == "join_game" and self.ip_active:
+                    if event.key == pygame.K_RETURN:
+                        # Try to connect
+                        self._join_network_game(self.ip_input)
+                    elif event.key == pygame.K_BACKSPACE:
+                        self.ip_input = self.ip_input[:-1]
+                    else:
+                        # Add character if it's a valid IP character
+                        if event.unicode in "0123456789.":
+                            self.ip_input += event.unicode
             
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 mouse_click = True
@@ -184,11 +225,23 @@ class MenuSystem:
                     self._check_button_clicks(self.main_menu_buttons, mouse_pos)
                 elif self.state == "difficulty":
                     self._check_button_clicks(self.difficulty_buttons, mouse_pos)
+                elif self.state == "network_menu":
+                    self._check_button_clicks(self.network_menu_buttons, mouse_pos)
+                elif self.state == "join_game":
+                    # Check if clicked in IP input box
+                    ip_rect = pygame.Rect(WIDTH//2 - 150, HEIGHT//2 - 30, 300, 40)
+                    self.ip_active = ip_rect.collidepoint(mouse_pos)
+                    
+                    # Check buttons
+                    self._check_button_clicks(self.join_menu_buttons, mouse_pos)
                 elif self.state == "game" and not self.paused:
                     if self.game and not self.game.game_over and not self.ai_thinking:
                         if self.game.turn == WHITE or not isinstance(self.game.black_player, ChessAI):
                             row, col = self.game._get_row_col_from_pos(mouse_pos)
                             self.game._handle_click(row, col)
+                    elif self.network_game:
+                        row, col = self.network_game.game._get_row_col_from_pos(mouse_pos)
+                        self.network_game.handle_click(row, col)
                 elif self.state == "game" and self.paused:
                     self._check_button_clicks(self.pause_menu_buttons, mouse_pos)
                 elif self.state == "game_over":
@@ -210,11 +263,30 @@ class MenuSystem:
         if self.state == "main_menu":
             if button.text == "Singleplayer":
                 self.state = "difficulty"
-            elif button.text == "Multiplayer":
-                self.game_mode = "multiplayer"
+            elif button.text == "Local Multiplayer":
+                self.game_mode = "local_multiplayer"
                 self._start_game()
+            elif button.text == "Network Multiplayer":
+                self.state = "network_menu"
             elif button.text == "Quit":
                 self.running = False
+        
+        elif self.state == "network_menu":
+            if button.text == "Host Game":
+                self.game_mode = "network_host"
+                self._start_network_game(is_server=True)
+            elif button.text == "Join Game":
+                self.state = "join_game"
+                self.ip_input = ""
+                self.ip_active = True
+            elif button.text == "Back":
+                self.state = "main_menu"
+        
+        elif self.state == "join_game":
+            if button.text == "Connect":
+                self._join_network_game(self.ip_input)
+            elif button.text == "Back":
+                self.state = "network_menu"
         
         elif self.state == "difficulty":
             if button.text == "Easy":
@@ -237,35 +309,37 @@ class MenuSystem:
                 self.paused = False
             elif button.text == "Back to Menu":
                 self._cancel_ai_thread()
-                self.game = None
+                self._cleanup_game()
                 self.state = "main_menu"
                 self.paused = False
             elif button.text == "Quit Game":
                 self._cancel_ai_thread()
+                self._cleanup_game()
                 self.running = False
         
         elif self.state == "game_over":
             if button.text == "Back to Menu":
                 self._cancel_ai_thread()
-                self.game = None
+                self._cleanup_game()
                 self.state = "main_menu"
             elif button.text == "Play Again":
                 self._cancel_ai_thread()
+                self._cleanup_game()
                 self._start_game()
     
     def _handle_main_menu(self):
-        """Handle main menu state"""
+        """Handle main menu rendering and interaction"""
         # Draw background
         self.screen.fill(self.bg_color)
         self.screen.blit(self.board_pattern, (0, 0))
         
         # Draw title
-        font = pygame.font.SysFont('Arial', 60, True)
-        title = font.render("Python Chess", True, self.title_color)
-        title_rect = title.get_rect(center=(WIDTH//2, HEIGHT//4))
-        self.screen.blit(title, title_rect)
+        title_font = pygame.font.SysFont('Arial', 64, True)
+        title_surface = title_font.render("Python Chess", True, self.title_color)
+        title_rect = title_surface.get_rect(center=(WIDTH//2, HEIGHT//4))
+        self.screen.blit(title_surface, title_rect)
         
-        # Update and draw buttons
+        # Draw buttons
         mouse_pos = pygame.mouse.get_pos()
         for button in self.main_menu_buttons:
             button.update(mouse_pos)
@@ -344,51 +418,51 @@ class MenuSystem:
             self.ai_move = None
     
     def _handle_game(self):
-        """Handle game state"""
-        if not self.game:
-            self.state = "main_menu"
-            return
-            
-        # Check if game is over
-        if self.game.game_over:
+        """Handle game state rendering and interaction"""
+        # Check for game over
+        if self.game and self.game.game_over:
             self.state = "game_over"
             return
         
-        # Process AI move if available
-        if self.ai_move and not self.ai_thinking:
-            start_pos, end_pos = self.ai_move
-            self.game.make_move(start_pos, end_pos)
-            self.ai_move = None
-        
-        # Start AI move calculation if needed
-        if (self.game.turn == BLACK and 
-            isinstance(self.game.black_player, ChessAI) and 
-            not self.ai_thinking and 
-            not self.ai_move and 
-            not self.game.game_over):
+        # Regular game handling
+        if self.network_game:
+            # For network games
+            self.network_game.update()
+            self.network_game.draw()
+            pygame.display.update()
+        elif self.game:
+            # For regular games (AI or local multiplayer)
+            # Handle AI move if it's black's turn
+            if self.game.turn == BLACK and not self.game.game_over and isinstance(self.game.black_player, ChessAI) and not self.ai_thinking:
+                self.ai_thinking = True
+                self.ai_start_time = pygame.time.get_ticks()
+                # Start a new thread for AI calculation
+                self.ai_thread = threading.Thread(target=self._ai_calculate_move)
+                self.ai_thread.daemon = True
+                self.ai_thread.start()
             
-            self.ai_thinking = True
-            self.ai_start_time = time.time()
-            # Start AI calculation in a separate thread
-            self.ai_thread = threading.Thread(target=self._ai_calculate_move)
-            self.ai_thread.daemon = True  # Thread will exit when main program exits
-            self.ai_thread.start()
-        
-        # Draw the game
-        self.game._draw()
-        
-        # Draw AI thinking indicator if needed
-        if self.ai_thinking:
-            elapsed_time = time.time() - self.ai_start_time
-            self._draw_thinking_indicator(elapsed_time)
-        
-        # Draw key hint for pause menu
-        hint_font = pygame.font.SysFont('Arial', 16, True)
-        hint = hint_font.render("Press ESC for menu", True, (50, 50, 50))
-        hint_rect = hint.get_rect(bottomright=(WIDTH - 10, HEIGHT - 10))
-        self.screen.blit(hint, hint_rect)
-        
-        pygame.display.update()
+            # Check if AI has found a move
+            if self.ai_thinking and self.ai_move:
+                # Apply the AI move
+                try:
+                    if self.debug:
+                        print(f"Applying AI move: {self.ai_move}")
+                    self.game.make_move(self.ai_move[0], self.ai_move[1])
+                except Exception as e:
+                    print(f"Error applying AI move: {str(e)}")
+                finally:
+                    self.ai_thinking = False
+                    self.ai_move = None
+                    self.ai_start_time = 0
+            
+            # Draw the game state
+            self.game._draw()
+            
+            # Draw AI thinking indicator if applicable
+            if self.ai_thinking:
+                self._draw_thinking_indicator(pygame.time.get_ticks() - self.ai_start_time)
+            
+            pygame.display.update()
     
     def _draw_thinking_indicator(self, elapsed_time):
         """Draw an indicator when AI is thinking"""
@@ -440,6 +514,9 @@ class MenuSystem:
     
     def _start_game(self):
         """Start a new game with the selected settings"""
+        # Reset any network game
+        self._cleanup_game()
+        
         # Create new game instance
         self.game = ChessGame()
         self.game.set_screen(self.screen)
@@ -452,12 +529,94 @@ class MenuSystem:
         if self.game_mode == "singleplayer":
             # Set up AI with selected difficulty
             self.game.black_player = ChessAI(BLACK, self.difficulty)
-        else:  # multiplayer
+        elif self.game_mode == "local_multiplayer":
             # Set up human player for black
             self.game.black_player = Player(BLACK)
         
         self.state = "game"
         self.paused = False
+    
+    def _start_network_game(self, is_server=False, server_ip=None):
+        """Start a new network game"""
+        # Reset any existing game
+        self._cleanup_game()
+        
+        # Create new network game instance
+        self.network_game = NetworkGame(self.screen, is_server=is_server, server_ip=server_ip)
+        
+        self.state = "game"
+        self.paused = False
+    
+    def _join_network_game(self, ip_address):
+        """Join a network game at the specified IP address"""
+        if not ip_address:
+            return
+            
+        # Start a network game in client mode
+        self._start_network_game(is_server=False, server_ip=ip_address)
+    
+    def _cleanup_game(self):
+        """Clean up game resources"""
+        if self.network_game:
+            self.network_game.cleanup()
+            self.network_game = None
+        
+        self.game = None
+    
+    def _handle_network_menu(self):
+        """Handle network menu rendering and interaction"""
+        # Draw background
+        self.screen.fill(self.bg_color)
+        self.screen.blit(self.board_pattern, (0, 0))
+        
+        # Draw title
+        title_font = pygame.font.SysFont('Arial', 48, True)
+        title_surface = title_font.render("Network Multiplayer", True, self.title_color)
+        title_rect = title_surface.get_rect(center=(WIDTH//2, HEIGHT//4))
+        self.screen.blit(title_surface, title_rect)
+        
+        # Draw buttons
+        mouse_pos = pygame.mouse.get_pos()
+        for button in self.network_menu_buttons:
+            button.update(mouse_pos)
+            button.draw(self.screen)
+        
+        pygame.display.update()
+    
+    def _handle_join_game(self):
+        """Handle join game menu rendering and interaction"""
+        # Draw background
+        self.screen.fill(self.bg_color)
+        self.screen.blit(self.board_pattern, (0, 0))
+        
+        # Draw title
+        title_font = pygame.font.SysFont('Arial', 48, True)
+        title_surface = title_font.render("Join Game", True, self.title_color)
+        title_rect = title_surface.get_rect(center=(WIDTH//2, HEIGHT//4))
+        self.screen.blit(title_surface, title_rect)
+        
+        # Draw IP input field
+        ip_rect = pygame.Rect(WIDTH//2 - 150, HEIGHT//2 - 30, 300, 40)
+        pygame.draw.rect(self.screen, (255, 255, 255), ip_rect)
+        pygame.draw.rect(self.screen, (0, 0, 0), ip_rect, 2)
+        
+        font = pygame.font.SysFont('Arial', 24)
+        ip_surface = font.render(self.ip_input, True, (0, 0, 0))
+        self.screen.blit(ip_surface, (ip_rect.x + 10, ip_rect.y + 10))
+        
+        # Draw prompt
+        prompt_font = pygame.font.SysFont('Arial', 24)
+        prompt_surface = prompt_font.render("Enter server IP address:", True, self.title_color)
+        prompt_rect = prompt_surface.get_rect(center=(WIDTH//2, HEIGHT//2 - 60))
+        self.screen.blit(prompt_surface, prompt_rect)
+        
+        # Draw buttons
+        mouse_pos = pygame.mouse.get_pos()
+        for button in self.join_menu_buttons:
+            button.update(mouse_pos)
+            button.draw(self.screen)
+        
+        pygame.display.update()
 
 
 # For testing directly

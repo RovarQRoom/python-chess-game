@@ -35,6 +35,7 @@ class ChessGame:
         self.game_over = False
         self.winner = None
         self.check_status = {WHITE: False, BLACK: False}
+        self.last_move = None  # Store the last move made (start_pos, end_pos)
         logging.info("Game initialized")
 
     def set_screen(self, screen):
@@ -280,88 +281,125 @@ class ChessGame:
         return row, col
 
     def _handle_click(self, row, col):
-        """Handle player clicks on the board"""
-        try:
-            # If a piece is already selected
-            if self.selected_piece:
-                selected_row, selected_col = self.selected_piece
-                
-                # Check if the clicked position is a valid move
-                if (row, col) in self.valid_moves:
-                    piece = self.board.get_piece(selected_row, selected_col)
-                    piece_name = f"{piece.symbol} at {selected_row},{selected_col}"
-                    logging.info(f"Player moving {piece_name} to {row},{col}")
-                    print(f"Player move: {piece.symbol} at {selected_row},{selected_col} to position {row},{col}")
-                    
-                    self.make_move((selected_row, selected_col), (row, col))
-                else:
-                    # Either deselect or select a new piece
-                    piece = self.board.get_piece(row, col)
-                    if piece and piece.color == self.turn:
-                        self.selected_piece = (row, col)
-                        self.valid_moves = self.board.get_valid_moves(row, col)
-                        logging.info(f"Selected {piece.symbol} at {row},{col} with {len(self.valid_moves)} valid moves")
-                    else:
-                        self.selected_piece = None
-                        self.valid_moves = []
+        """Handle a click on the chess board at the specified position
+        
+        Args:
+            row: Row index (0-7)
+            col: Column index (0-7)
+            
+        Returns:
+            str: Action that was taken ("select", "move", "deselect", or None)
+        """
+        # If a piece is already selected
+        if self.selected_piece:
+            # Get the position of the selected piece
+            piece_row, piece_col = self.selected_piece
+            
+            # If clicked on the same piece, deselect it
+            if piece_row == row and piece_col == col:
+                self.selected_piece = None
+                self.valid_moves = []
+                return "deselect"
+            
+            # If clicked on a valid move position, make the move
+            move_made = False
+            for move in self.valid_moves:
+                if move[0] == row and move[1] == col:
+                    # Make the move
+                    self.make_move((piece_row, piece_col), (row, col))
+                    move_made = True
+                    break
+            
+            if move_made:
+                # Clear selection after move
+                self.selected_piece = None
+                self.valid_moves = []
+                return "move_made"
             else:
-                # Select a piece if one is clicked
-                piece = self.board.get_piece(row, col)
-                if piece and piece.color == self.turn:
+                # Check if clicked on another piece of the same color
+                piece_at_click = self.board.get_piece(row, col)
+                if piece_at_click and piece_at_click.color == self.turn:
                     self.selected_piece = (row, col)
                     self.valid_moves = self.board.get_valid_moves(row, col)
-                    logging.info(f"Selected {piece.symbol} at {row},{col} with {len(self.valid_moves)} valid moves")
-        except Exception as e:
-            logging.error(f"Error handling click: {str(e)}", exc_info=True)
-            print(f"Error handling click: {str(e)}")
+                    return "select"
+                    
+        # If no piece is selected and a piece was clicked
+        else:
+            piece = self.board.get_piece(row, col)
+            if piece and piece.color == self.turn:
+                self.selected_piece = (row, col)
+                self.valid_moves = self.board.get_valid_moves(row, col)
+                return "select"
+        
+        return None
 
     def make_move(self, start, end):
-        """Make a move on the board and update game state"""
-        try:
-            start_row, start_col = start
-            end_row, end_col = end
+        """Make a chess move
+        
+        Args:
+            start: Tuple of (row, col) for the start position
+            end: Tuple of (row, col) for the end position
             
-            # Execute the move
-            move_successful = self.board.move_piece(start_row, start_col, end_row, end_col)
+        Returns:
+            bool: True if the move was successful, False otherwise
+        """
+        start_row, start_col = start
+        end_row, end_col = end
+        
+        # Get the piece at the start position
+        piece = self.board.get_piece(start_row, start_col)
+        
+        # Check that there is a piece and it's the correct color's turn
+        if not piece or piece.color != self.turn:
+            return False
+        
+        # Check if the move is valid
+        valid_moves = self.board.get_valid_moves(start_row, start_col)
+        if (end_row, end_col) not in valid_moves:
+            return False
+        
+        # Make the move
+        logging.info(f"Moving {piece.symbol} from {start_row},{start_col} to {end_row},{end_col}")
+        
+        # Record the move
+        self.last_move = (start, end)
+        
+        # Check if we're capturing a piece before making the move
+        captured_piece = self.board.get_piece(end_row, end_col)
+        if captured_piece:
+            logging.info(f"Capturing {captured_piece.symbol} at {end_row},{end_col}")
             
-            if not move_successful:
-                logging.error(f"Failed to move piece from {start} to {end}")
-                return
-            
-            # Reset selection
-            self.selected_piece = None
-            self.valid_moves = []
-            
-            # Update check status
-            self.check_status = {
-                WHITE: self.board.is_in_check(WHITE),
-                BLACK: self.board.is_in_check(BLACK)
-            }
-            
-            # Check for game ending conditions
-            opponent_color = BLACK if self.turn == WHITE else WHITE
-            if self.board.is_checkmate(opponent_color):
-                self.game_over = True
-                self.winner = self.turn
-                winner_name = "White" if self.turn == WHITE else "Black"
-                logging.info(f"Game over: {winner_name} wins by checkmate")
-                print(f"Game over: {winner_name} wins by checkmate")
-            elif self.board.is_stalemate(opponent_color):
-                self.game_over = True
-                self.winner = None
-                logging.info("Game over: Stalemate")
-                print("Game over: Stalemate")
-            
-            # Switch turns - log only in debug mode to reduce console clutter
-            self.turn = BLACK if self.turn == WHITE else WHITE
-            
-            # Log check status only if in check
-            if self.check_status[self.turn]:
-                logging.info(f"{'White' if self.turn == WHITE else 'Black'} is in check!")
-                print(f"{'White' if self.turn == WHITE else 'Black'} is in check!")
-        except Exception as e:
-            logging.error(f"Error making move: {str(e)}", exc_info=True)
-            print(f"Error making move: {str(e)}")
+        # Move the piece - returns True if successful
+        move_result = self.board.move_piece(start_row, start_col, end_row, end_col)
+        if not move_result:
+            return False
+        
+        # Switch turns
+        self.turn = BLACK if self.turn == WHITE else WHITE
+        
+        # Update check status
+        self.check_status = {
+            WHITE: self.board.is_in_check(WHITE),
+            BLACK: self.board.is_in_check(BLACK)
+        }
+        
+        # Check for checkmate or stalemate
+        opponent_color = BLACK if piece.color == WHITE else WHITE
+        
+        if self.board.is_checkmate(opponent_color):
+            self.game_over = True
+            self.winner = piece.color
+            logging.info(f"Checkmate! Winner: {'White' if self.winner == WHITE else 'Black'}")
+        elif self.board.is_stalemate(opponent_color):
+            self.game_over = True
+            self.winner = None
+            logging.info("Stalemate!")
+        elif self.board.is_draw_by_insufficient_material():
+            self.game_over = True
+            self.winner = None
+            logging.info("Draw by insufficient material!")
+        
+        return True
 
     def _draw_thinking_indicator(self, elapsed_time):
         """Draw an indicator when AI is thinking"""
