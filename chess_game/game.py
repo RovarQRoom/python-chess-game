@@ -99,6 +99,61 @@ class ChessGame:
         
         pygame.quit()
 
+    def run_once(self, skip_ai=False, skip_events=False):
+        """Run a single iteration of the game loop, for use with the menu system
+        
+        Args:
+            skip_ai: If True, skips AI move processing
+            skip_events: If True, skips pygame event processing
+        """
+        # Update check status
+        self.check_status = {
+            WHITE: self.board.is_in_check(WHITE),
+            BLACK: self.board.is_in_check(BLACK)
+        }
+        
+        # AI move if it's black's turn and AI is enabled
+        if self.turn == BLACK and not self.game_over and isinstance(self.black_player, ChessAI) and not skip_ai:
+            try:
+                logging.info("AI is thinking...")
+                move = self.black_player.get_move(self.board)
+                if move:
+                    start_pos, end_pos = move
+                    start_row, start_col = start_pos
+                    end_row, end_col = end_pos
+                    piece = self.board.get_piece(start_row, start_col)
+                    piece_name = f"{piece.symbol} at {start_row},{start_col}"
+                    
+                    logging.info(f"AI moving {piece_name} to {end_row},{end_col}")
+                    print(f"AI move: {piece.symbol} at {start_row},{start_col} to position {end_row},{end_col}")
+                    
+                    self.make_move(move[0], move[1])
+                else:
+                    logging.warning("AI couldn't find a valid move")
+                    print("AI couldn't find a valid move")
+            except Exception as e:
+                logging.error(f"AI move error: {str(e)}", exc_info=True)
+                print(f"Error during AI move: {str(e)}")
+        
+        # Event handling (only if not being handled by menu system)
+        if not skip_events:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    return "quit"
+                
+                if event.type == pygame.MOUSEBUTTONDOWN and not self.game_over:
+                    if self.turn == WHITE or not isinstance(self.black_player, ChessAI):
+                        pos = pygame.mouse.get_pos()
+                        row, col = self._get_row_col_from_pos(pos)
+                        self._handle_click(row, col)
+        
+        # Draw the game
+        self._draw()
+        pygame.display.update()
+        
+        # Return None for normal operation
+        return None
+
     def _draw(self):
         """Draw the game board and pieces"""
         self._draw_board()

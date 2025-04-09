@@ -3,14 +3,19 @@
 Chess Game - Main Entry Point
 """
 import pygame
-from chess_game.game import ChessGame
+from chess_game.menu import MenuSystem
 
 def main():
     """Main function to run the chess game"""
-    # Initialize the game
-    game = ChessGame()
-    # Start the game loop
-    game.run()
+    # Initialize pygame
+    pygame.init()
+    
+    # Start the menu system
+    menu = MenuSystem()
+    menu.run()
+    
+    # Clean up pygame
+    pygame.quit()
 
 if __name__ == "__main__":
     main()
