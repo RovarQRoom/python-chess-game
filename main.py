@@ -3,7 +3,6 @@
 Chess Game - Main Entry Point
 """
 import pygame
-import sys
 import argparse
 import socket
 import logging
