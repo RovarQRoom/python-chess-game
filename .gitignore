@@ -1,0 +1,58 @@
+# Python bytecode files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+venv/
+env/
+ENV/
+.env
+.venv
+env.bak/
+venv.bak/
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Pygame-specific
+*.pgm
+*.bmp
+*.jpg.gz
+*.png.gz
+
+# Logs and databases
+*.log
+*.sqlite
+*.db
+
+# Project-specific
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+
+# Chess game specific files
+assets/wP.png
+assets/wR.png
+assets/wN.png
+assets/wB.png
+assets/wQ.png
+assets/wK.png
+assets/bP.png
+assets/bR.png
+assets/bN.png
+assets/bB.png
+assets/bQ.png
+assets/bK.png 
