@@ -3,7 +3,10 @@
 Chess Game - Main Entry Point
 """
 import pygame
-from chess_game.menu import MenuSystem
+import sys
+
+# Import the fixed menu system
+from fixed_menu import MenuSystem
 
 def main():
     """Main function to run the chess game"""

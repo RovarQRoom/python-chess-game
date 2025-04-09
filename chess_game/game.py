@@ -21,9 +21,10 @@ class ChessGame:
     """Main class that manages the chess game"""
     
     def __init__(self):
-        pygame.init()
-        self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
-        pygame.display.set_caption("Python Chess")
+        """Initialize the game"""
+        # Don't initialize pygame or create a new screen if this is called from menu
+        # The screen will be set by the menu system
+        self.screen = None
         self.clock = pygame.time.Clock()
         self.board = Board()
         self.selected_piece = None
@@ -36,8 +37,18 @@ class ChessGame:
         self.check_status = {WHITE: False, BLACK: False}
         logging.info("Game initialized")
 
+    def set_screen(self, screen):
+        """Set the screen from an external source (like the menu system)"""
+        self.screen = screen
+
     def run(self):
         """Main game loop"""
+        # Initialize the screen if not already set (standalone mode)
+        if not self.screen:
+            pygame.init()
+            self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
+            pygame.display.set_caption("Python Chess")
+            
         running = True
         ai_thinking = False
         ai_start_time = 0
@@ -106,6 +117,11 @@ class ChessGame:
             skip_ai: If True, skips AI move processing
             skip_events: If True, skips pygame event processing
         """
+        # Make sure we have a screen to draw on
+        if not self.screen:
+            print("ERROR: No screen set for the game. Cannot run.")
+            return "error"
+            
         # Update check status
         self.check_status = {
             WHITE: self.board.is_in_check(WHITE),
@@ -116,6 +132,7 @@ class ChessGame:
         if self.turn == BLACK and not self.game_over and isinstance(self.black_player, ChessAI) and not skip_ai:
             try:
                 logging.info("AI is thinking...")
+                print("AI is thinking...")
                 move = self.black_player.get_move(self.board)
                 if move:
                     start_pos, end_pos = move
@@ -156,6 +173,10 @@ class ChessGame:
 
     def _draw(self):
         """Draw the game board and pieces"""
+        if not self.screen:
+            print("ERROR: Cannot draw game - no screen is set")
+            return
+            
         self._draw_board()
         self._highlight_check()
         self._highlight_valid_moves()
@@ -264,6 +285,7 @@ class ChessGame:
             # If a piece is already selected
             if self.selected_piece:
                 selected_row, selected_col = self.selected_piece
+                
                 # Check if the clicked position is a valid move
                 if (row, col) in self.valid_moves:
                     piece = self.board.get_piece(selected_row, selected_col)
@@ -330,15 +352,13 @@ class ChessGame:
                 logging.info("Game over: Stalemate")
                 print("Game over: Stalemate")
             
-            # Switch turns
+            # Switch turns - log only in debug mode to reduce console clutter
             self.turn = BLACK if self.turn == WHITE else WHITE
             
-            # Log check status
+            # Log check status only if in check
             if self.check_status[self.turn]:
-                print(f"{'White' if self.turn == WHITE else 'Black'} is in check!")
                 logging.info(f"{'White' if self.turn == WHITE else 'Black'} is in check!")
-            
-            logging.info(f"Turn changed to {'Black' if self.turn == BLACK else 'White'}")
+                print(f"{'White' if self.turn == WHITE else 'Black'} is in check!")
         except Exception as e:
             logging.error(f"Error making move: {str(e)}", exc_info=True)
             print(f"Error making move: {str(e)}")

@@ -228,17 +228,31 @@ class MenuSystem:
                             if self.game.turn == WHITE or not isinstance(self.game.black_player, ChessAI):
                                 pos = pygame.mouse.get_pos()
                                 row, col = self.game._get_row_col_from_pos(pos)
+                                print(f"Clicked on position: {row}, {col}")
+                                
+                                # Check if there's a piece at this position
+                                piece = self.game.board.get_piece(row, col)
+                                if piece:
+                                    print(f"Piece at position: {piece.symbol}, color: {'White' if piece.color == WHITE else 'Black'}")
+                                
+                                # Actually handle the click
                                 self.game._handle_click(row, col)
+                                
+                                # Check if a piece was selected after handling the click
+                                if self.game.selected_piece:
+                                    print(f"Selected piece at: {self.game.selected_piece}")
+                                    print(f"Valid moves: {self.game.valid_moves}")
                 
-                # Run one iteration of the game loop with skipped event handling
-                # since we've already handled the events above
+                # Draw the current game state
+                self.game._draw()
+                
+                # Run AI move if it's black's turn
                 if self.game.turn == BLACK and isinstance(self.game.black_player, ChessAI) and not self.game.game_over:
                     # Let the AI make its move
+                    print("AI's turn, making move...")
                     self.game.run_once(skip_events=True)
-                else:
-                    # Just draw the current game state
-                    self.game._draw()
-                    pygame.display.update()
+                
+                pygame.display.update()
     
     def _handle_game_over(self, mouse_pos, mouse_click):
         """Handle game over screen"""
@@ -279,12 +293,16 @@ class MenuSystem:
     def _start_game(self):
         """Start a new game with the selected settings"""
         self.game = ChessGame()
+        # Pass the screen from menu to game
+        self.game.set_screen(self.screen)
         
         if self.game_mode == "singleplayer":
             # Set up AI with selected difficulty
             self.game.black_player = ChessAI(BLACK, self.difficulty)
+            print(f"Starting singleplayer game with difficulty level: {self.difficulty}")
         else:  # multiplayer
             # Set up human player for black
             self.game.black_player = Player(BLACK)
+            print("Starting multiplayer game")
         
         self.state = "game" 

@@ -21,6 +21,10 @@ class ChessAI(Player):
         super().__init__(color)
         self.difficulty = difficulty  # Difficulty from 1-4, controls search depth
         self.max_depth = difficulty + 1  # Search depth (2-5)
+        
+        # Adjust timing constraints based on difficulty
+        self.time_limit = max(2.0, 1.0 * difficulty)  # 2-5 seconds based on difficulty
+        
         self.nodes_evaluated = 0
         self.transposition_table = {}  # For caching board evaluations
         self.move_ordering = True  # Enable move ordering for more efficient pruning
@@ -40,6 +44,16 @@ class ChessAI(Player):
             
             total_moves = sum(len(moves) for moves in valid_moves.values())
             logging.info(f"AI evaluating {total_moves} possible moves")
+            
+            # If very few moves, make a quick decision
+            if total_moves == 1:
+                only_piece = list(valid_moves.keys())[0]
+                only_move = valid_moves[only_piece][0]
+                return (only_piece, only_move)
+            
+            # If easy difficulty and opening moves, use a faster approach
+            if self.difficulty == 1 and board.fullmove_counter <= 3:
+                return self._get_quick_opening_move(board, valid_moves)
             
             # If too many moves to evaluate deeply, limit search depth further
             dynamic_depth = self.max_depth
@@ -69,6 +83,10 @@ class ChessAI(Player):
                         if score > best_score:
                             best_score = score
                             best_move = (piece_pos, move)
+                            
+                            # If we found a winning move at easy difficulty, just take it
+                            if self.difficulty <= 2 and score > 5000:
+                                return best_move
                         
                         # Update alpha
                         alpha = max(alpha, best_score)
@@ -78,12 +96,12 @@ class ChessAI(Player):
                     
                     # Quick exit if we're taking too long
                     current_time = time.time()
-                    if current_time - start_time > 5.0 and best_move:  # 5 second limit
+                    if current_time - start_time > self.time_limit and best_move:
                         logging.warning("AI search taking too long, stopping early")
                         break
                 
                 # Quick exit if we're taking too long
-                if time.time() - start_time > 5.0 and best_move:
+                if time.time() - start_time > self.time_limit and best_move:
                     break
             
             end_time = time.time()
@@ -91,36 +109,19 @@ class ChessAI(Player):
             logging.info(f"AI move evaluation: {self.nodes_evaluated} nodes in {evaluation_time:.2f}s")
             print(f"AI evaluated {self.nodes_evaluated} positions in {evaluation_time:.2f} seconds")
             
-            if best_move:
-                piece = board.get_piece(best_move[0][0], best_move[0][1])
-                if piece:
-                    move_desc = f"{piece.symbol} from {best_move[0]} to {best_move[1]}"
-                    logging.info(f"AI chose move: {move_desc} (score: {best_score})")
-                    print(f"AI chose: {move_desc}")
-                else:
-                    logging.error(f"No piece found at position {best_move[0]}")
-            else:
-                logging.warning("AI couldn't find a best move")
-                # Fall back to a random move if no best move found
-                if valid_moves:
-                    piece_pos = random.choice(list(valid_moves.keys()))
-                    move = random.choice(valid_moves[piece_pos])
-                    best_move = (piece_pos, move)
-                    logging.warning(f"AI falling back to random move: {piece_pos} -> {move}")
-            
             return best_move
+        
         except Exception as e:
-            logging.error(f"Error in AI get_move: {str(e)}", exc_info=True)
-            # Return a random valid move as fallback
+            logging.error(f"Error in get_move: {str(e)}", exc_info=True)
+            
+            # Fallback to a random move in case of an error
             try:
-                if valid_moves:
-                    piece_pos = random.choice(list(valid_moves.keys()))
-                    move = random.choice(valid_moves[piece_pos])
-                    logging.warning(f"AI falling back to random move: {piece_pos} -> {move}")
-                    return (piece_pos, move)
-            except Exception:
-                pass
-            return None
+                # Get any valid move
+                for piece_pos, moves in valid_moves.items():
+                    if moves:
+                        return (piece_pos, moves[0])
+            except:
+                return None
     
     def _get_all_valid_moves(self, board, color):
         """Get all valid moves for a given color"""
@@ -532,4 +533,50 @@ class ChessAI(Player):
                 ordered_valid_moves[piece_pos] = []
             ordered_valid_moves[piece_pos].append(move)
         
-        return list(ordered_valid_moves.items()) 
+        return list(ordered_valid_moves.items())
+    
+    def _get_quick_opening_move(self, board, valid_moves):
+        """Get a quick opening move for lower difficulty levels"""
+        try:
+            # Standard opening moves - prioritize center control and development
+            # For pawns in starting position
+            for col in [3, 4]:  # e and d pawns
+                pawn_row = 6 if self.color == WHITE else 1
+                pawn_pos = (pawn_row, col)
+                
+                # Check if pawn is available and can move forward two squares
+                if pawn_pos in valid_moves:
+                    forward_two = (pawn_row - 2, col) if self.color == WHITE else (pawn_row + 2, col)
+                    if forward_two in valid_moves[pawn_pos]:
+                        return (pawn_pos, forward_two)
+            
+            # Develop knights
+            knight_cols = [1, 6]  # b and g knights
+            knight_row = 7 if self.color == WHITE else 0
+            for col in knight_cols:
+                knight_pos = (knight_row, col)
+                if knight_pos in valid_moves:
+                    # Try to move to common knight development squares
+                    for target_pos in valid_moves[knight_pos]:
+                        # Target squares like f3, c3 for white or f6, c6 for black
+                        good_target_row = 5 if self.color == WHITE else 2
+                        good_target_cols = [2, 5]  # c and f files
+                        if target_pos[0] == good_target_row and target_pos[1] in good_target_cols:
+                            return (knight_pos, target_pos)
+            
+            # Just pick a reasonable move from the ordered list
+            ordered_moves = self._order_moves(board, valid_moves)
+            if ordered_moves:
+                piece_pos, moves = ordered_moves[0]
+                if moves:
+                    return (piece_pos, moves[0])
+            
+            # Fallback to first available move
+            for piece_pos, moves in valid_moves.items():
+                if moves:
+                    return (piece_pos, moves[0])
+                    
+            return None
+        except Exception as e:
+            logging.error(f"Error in get_quick_opening_move: {str(e)}", exc_info=True)
+            return None 
